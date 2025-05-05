@@ -1,0 +1,64 @@
+flowchart TD
+ subgraph Configuration["Configuration"]
+    direction TB
+        B2["Read Fine Tuning from config py Batch Size Sampling etc"]
+        B1["Read Env Vars OTEL EXPORTER SERVICE NAME VERSION ENV ENABLE PROMETHEUS etc"]
+        C["Call setup_telemetry app from telemetry py"]
+  end
+ subgraph CoreModules["CoreModules"]
+    direction TB
+        E["telemetry py Setup Entry Point"]
+        F["client py Init OTel Client FastAPI Instrum Manual Spans"]
+        G["config py Configuration Source"]
+        H["decorators py ATtrace_function ATmeasure_performance ATtrack_errors"]
+        I["health_check py Health Logic Endpoint /health/telemetry"]
+  end
+ subgraph UsageInApplication["UsageInApplication"]
+    direction TB
+        J["FastAPI Middleware Auto Tracing Metrics via client py"]
+        K["Use Decorators ATtrace ATmeasure ATtrack_errors via decorators py"]
+        L["Manual Spans via client py start_span"]
+        M["Access Health Endpoint /health/telemetry via health_check py"]
+        N["Programmatic Health Check check_telemetry_health via health_check py"]
+  end
+ subgraph ExternalSystems["ExternalSystems"]
+        O["OTel Collector Receives Traces Metrics"]
+        P["Prometheus Server Scrapes /metrics"]
+        Q["Observability Backend e g Jaeger Tempo"]
+        R["Monitoring Dashboard e g Grafana"]
+  end
+ subgraph BestPracticesDocs["BestPracticesDocs"]
+    direction TB
+        S["Best Practice Init Early Use Decorators Tune Config Monitor"]
+        T["Docs See README _docs for details"]
+  end
+    A["Start FastAPI Application Init"] --> B{"Configure Telemetry"}
+    B1 --> B2
+    B2 --> C
+    B --> B1
+    C --> D{"Telemetry Setup Orchestration"} & E
+    E -- Uses --> F & I
+    E -- Integrates --> A
+    F -- Reads --> G
+    I -- Reads --> G
+    B2 -- Is Source For --> G
+    A -- Leads to --> J
+    J -- Implemented by --> F
+    K -- Implemented by --> H
+    L -- Implemented by --> F
+    M -- Implemented by --> I
+    N -- Implemented by --> I
+    F -- Sends Data To --> O
+    F -- Exposes Metrics For --> P
+    O --> Q
+    P --> R
+    A -.-> S & T
+    UsageInApplication --> n1["Untitled Node"]
+
+    style CoreModules fill:#f9f,stroke:#333,stroke-width:1px
+    style ExternalSystems fill:#ccf,stroke:#333,stroke-width:1px
+    style UsageInApplication fill:#eee,stroke:#333,stroke-width:1px
+    style Configuration fill:#lightyellow,stroke:#333,stroke-width:1px
+    style BestPracticesDocs fill:#lightgrey,stroke:#333,stroke-width:1px,stroke-dasharray: 5 5
+
+
