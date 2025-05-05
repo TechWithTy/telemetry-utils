@@ -1,0 +1,1 @@
+brwose the docs : https://opentelemetry-python-contrib.readthedocs.io/en/latest/instrumentation/fastapi/fastapi.html
