@@ -1,0 +1,41 @@
+# docker-compose.grafana.yml
+version: '3.8'
+
+services:
+  grafana:
+    image: grafana/grafana:10.2.3 # Pinned version
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      # Map host port to Grafana's internal port 3000
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      # Mount volume for Grafana database, plugins, etc.
+      - grafana-data:/var/lib/grafana
+      # Mount provisioning directory for datasources, dashboards (read-only)
+      - ./config/grafana/provisioning/:/etc/grafana/provisioning/:ro # Verify host path
+      # Optionally mount dashboards directly if not using provisioning
+      # - ./config/grafana/dashboards/:/var/lib/grafana/dashboards/:ro
+    networks:
+      - app-network # Needs to reach datasources (Loki, Prometheus, Tempo)
+    environment:
+      # Configure Grafana via environment variables
+      # Use Docker secrets for passwords/sensitive keys in production
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USERNAME:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      # Add other necessary overrides (e.g., SMTP, OAuth, database backend)
+      # - GF_SMTP_ENABLED=${GF_SMTP_ENABLED:-false}
+      # - GF_SERVER_ROOT_URL=https://grafana.${DOMAIN} # Example if using behind proxy
+    # depends_on: # Cannot depend on services in external files
+    #   - loki
+    #   - prometheus
+    #   - tempo
+
+networks:
+  app-network:
+    external: true # Assume network created elsewhere
+
+volumes:
+  grafana-data:
+    # Define volume used by Grafana
