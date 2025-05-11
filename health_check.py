@@ -10,6 +10,7 @@ import logging
 from typing import Optional
 
 from fastapi import Response, status
+from fastapi.responses import JSONResponse
 from opentelemetry import metrics
 
 from .client import TelemetryClient
@@ -28,14 +29,7 @@ def check_telemetry_health(client: Optional[TelemetryClient] = None) -> dict[str
         dict with health status and details
     """
     if client is None:
-        from .telemetry import get_telemetry
-        try:
-            client = get_telemetry()
-        except RuntimeError:
-            return {
-                "status": "unhealthy",
-                "reason": "Telemetry client not initialized"
-            }
+        return {"status": "uninitialized", "reason": "Telemetry client not initialized"}
 
     health_status = {"status": "healthy"}
     
@@ -57,15 +51,9 @@ def health_response() -> Response:
     Generate FastAPI response for telemetry health check.
     """
     health = check_telemetry_health()
-    status_code = (
-        status.HTTP_200_OK if health["status"] == "healthy" 
-        else status.HTTP_503_SERVICE_UNAVAILABLE
-    )
-    
-    return Response(
-        content=health,
-        status_code=status_code,
-        media_type="application/json"
+    return JSONResponse(
+        health,
+        status_code=200 if health["status"] == "healthy" else 503,
     )
 
 

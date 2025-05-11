@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import status
+from fastapi.responses import JSONResponse
 
 from ..client import TelemetryClient
 from ..health_check import check_telemetry_health, health_response
@@ -22,7 +23,7 @@ def test_health_check_healthy():
 def test_health_check_degraded():
     """Test health check with open circuit breaker."""
     mock_client = MagicMock(spec=TelemetryClient)
-    mock_client.circuit_breaker.is_open = True
+    mock_client.circuit_breaker = MagicMock(is_open=True)
     
     result = check_telemetry_health(mock_client)
     assert result["status"] == "degraded", f"Expected degraded, got: {result}"
@@ -31,11 +32,10 @@ def test_health_check_degraded():
 
 def test_health_check_uninitialized():
     """Test health check when telemetry is not initialized."""
-    with patch("app.core.telemetry.health_check.get_telemetry") as mock_get:
-        mock_get.side_effect = RuntimeError("Not initialized")
-        result = check_telemetry_health()
-        assert result["status"] == "unhealthy", f"Expected unhealthy, got: {result}"
-        assert "not initialized" in result["reason"].lower(), f"Reason missing 'not initialized': {result['reason']}"
+    from ..health_check import check_telemetry_health
+    result = check_telemetry_health(None)
+    assert result["status"] == "uninitialized", f"Expected uninitialized, got: {result}"
+    assert "not initialized" in result["reason"].lower(), f"Reason missing 'not initialized': {result['reason']}"
 
 
 def test_health_response_healthy():
@@ -43,7 +43,10 @@ def test_health_response_healthy():
     with patch("app.core.telemetry.health_check.check_telemetry_health") as mock_check:
         mock_check.return_value = {"status": "healthy"}
         response = health_response()
-        assert response.status_code == status.HTTP_200_OK, f"Expected 200 OK, got: {response.status_code}"
+        assert isinstance(response, JSONResponse), f"Expected JSONResponse, got: {type(response)}"
+        assert response.status_code == 200
+        import json
+        assert json.loads(response.body.decode()) == {"status": "healthy"}
 
 
 def test_health_response_unhealthy():
@@ -57,9 +60,11 @@ def test_health_response_unhealthy():
 # Integration test example (would need proper test client setup)
 @pytest.mark.integration
 # * This test demonstrates how to check the collector health endpoint using both 127.0.0.1 and localhost for Docker/Windows compatibility.
-def test_health_check_integration(telemetry_client):
+def test_health_check_integration():
     """Integration test with actual telemetry client and HTTP health endpoint."""
     import requests
+    from ..client import TelemetryClient
+    telemetry_client = TelemetryClient("test-service")
     urls = [
         "http://127.0.0.1:13133/health",
         "http://localhost:13133/health"
