@@ -72,7 +72,9 @@ class TelemetryClient:
         metric_exporter = OTLPMetricExporter(
             endpoint=os.getenv(
                 "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "http://localhost:4317"
-            )
+            ),
+            # ! Respect insecure flag for consistency and security
+            insecure=os.getenv("OTEL_EXPORTER_OTLP_INSECURE", "false").lower() == "true",
         )
         metric_reader = PeriodicExportingMetricReader(metric_exporter)
         metrics.set_meter_provider(MeterProvider(metric_readers=[metric_reader]))

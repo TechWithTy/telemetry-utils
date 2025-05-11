@@ -32,6 +32,22 @@ services:
     #   - prometheus
     #   - tempo
 
+  otel-collector:
+    image: otel/opentelemetry-collector:0.93.0
+    container_name: otel-collector
+    restart: unless-stopped
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - "4317:4317"    # OTLP gRPC
+      - "4318:4318"    # OTLP HTTP (healthcheck expects this)
+      - "8899:8899"    # Prometheus exporter
+    networks:
+      - app-network
+    environment:
+      - NO_WINDOWS_SERVICE=1
+
 networks:
   app-network:
     external: true # Assume network created elsewhere

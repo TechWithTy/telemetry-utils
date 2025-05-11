@@ -78,7 +78,7 @@ def get_telemetry() -> TelemetryClient:
     return telemetry_client
 
 
-@trace_function(attributes={"component": "telemetry"})
+@trace_function("shutdown_telemetry", attributes={"component": "telemetry"})
 def shutdown_telemetry():
     """Properly shutdown telemetry providers."""
     if telemetry_client is not None:

@@ -1,7 +1,7 @@
 import logging
 from functools import wraps
 from time import perf_counter
-from typing import Any, Callable, dict, Optional, TypeVar
+from typing import Any, Callable, TypeVar
 
 from opentelemetry import metrics, trace
 

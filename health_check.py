@@ -7,7 +7,7 @@ Includes checks for:
 - Resource utilization
 """
 import logging
-from typing , Optional
+from typing import Optional
 
 from fastapi import Response, status
 from opentelemetry import metrics
