@@ -7,17 +7,28 @@ from ..client import TelemetryClient
 
 @pytest.fixture
 def mock_tracer_provider():
-    with patch('opentelemetry.sdk.trace.TracerProvider') as mock:
+    with patch('app.core.telemetry.client.TracerProvider') as mock:
         with patch('opentelemetry.trace.set_tracer_provider') as set_provider:
             yield mock
 
 @pytest.fixture
 def mock_meter_provider():
-    with patch('opentelemetry.sdk.metrics.MeterProvider') as mock:
+    with patch('app.core.telemetry.client.MeterProvider') as mock:
         with patch('opentelemetry.metrics.set_meter_provider') as set_provider:
             yield mock
 
+from unittest.mock import MagicMock
+
 def test_client_initialization(mock_tracer_provider, mock_meter_provider):
+    with patch('opentelemetry.trace.get_tracer_provider') as get_tracer_provider:
+        mock_provider = MagicMock()
+        get_tracer_provider.return_value = mock_provider
+        mock_provider.add_span_processor = MagicMock()
+        client = TelemetryClient("test-service", "1.0.0")
+        assert mock_tracer_provider.called, "TracerProvider was not called during TelemetryClient init"
+        assert mock_meter_provider.called, "MeterProvider was not called during TelemetryClient init"
+        assert client.service_name == "test-service", f"Expected service_name 'test-service', got: {client.service_name}"
+        assert client.service_version == "1.0.0", f"Expected version '1.0.0', got: {client.service_version}"
     """Test that client properly initializes tracing and metrics"""
     client = TelemetryClient("test-service", "1.0.0")
     
@@ -27,6 +38,19 @@ def test_client_initialization(mock_tracer_provider, mock_meter_provider):
     assert client.service_version == "1.0.0", f"Expected version '1.0.0', got: {client.service_version}"
 
 def test_shutdown(mock_tracer_provider, mock_meter_provider):
+    with patch('opentelemetry.trace.get_tracer_provider') as get_tracer_provider, \
+         patch('opentelemetry.metrics.get_meter_provider') as get_meter_provider:
+        mock_trace_provider = MagicMock()
+        mock_meter_provider_inst = MagicMock()
+        get_tracer_provider.return_value = mock_trace_provider
+        get_meter_provider.return_value = mock_meter_provider_inst
+        mock_trace_provider.add_span_processor = MagicMock()
+        mock_trace_provider.shutdown = MagicMock()
+        mock_meter_provider_inst.shutdown = MagicMock()
+        client = TelemetryClient("test-service")
+        client.shutdown()
+        assert mock_trace_provider.shutdown.called, "TracerProvider.shutdown was not called"
+        assert mock_meter_provider_inst.shutdown.called, "MeterProvider.shutdown was not called"
     """Test that shutdown properly cleans up providers"""
     client = TelemetryClient("test-service")
     client.shutdown()

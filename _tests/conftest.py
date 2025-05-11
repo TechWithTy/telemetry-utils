@@ -4,11 +4,6 @@ import requests
 import time
 import os
 from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk._logs import LoggerProvider
-from opentelemetry._logs import set_logger_provider
-import opentelemetry.metrics as metrics
 
 
 # ! This fixture ensures the OpenTelemetry Collector is running before any tests execute.

@@ -15,7 +15,15 @@ def test_trace_function():
         result = test_func()
         assert result == "success"
         assert mock_tracer.return_value.start_as_current_span.called
-        assert mock_tracer.return_value.start_as_current_span.call_args[1]["name"] == "test-span"
+        call_args = mock_tracer.return_value.start_as_current_span.call_args
+        print(f"call_args for start_as_current_span: {call_args}")
+        # Check if 'name' is in args or kwargs
+        args, kwargs = call_args
+        if 'name' in kwargs:
+            assert kwargs['name'] == "test-span"
+        else:
+            # If positional, assume first arg is name
+            assert args[0] == "test-span"
 
 
 def test_track_errors():

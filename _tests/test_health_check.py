@@ -13,7 +13,7 @@ from ..health_check import check_telemetry_health, health_response
 def test_health_check_healthy():
     """Test health check with healthy client."""
     mock_client = MagicMock(spec=TelemetryClient)
-    mock_client.circuit_breaker.is_open = False
+    mock_client.circuit_breaker = MagicMock(is_open=False)
     
     result = check_telemetry_health(mock_client)
     assert result["status"] == "healthy", f"Expected healthy, got: {result}"
