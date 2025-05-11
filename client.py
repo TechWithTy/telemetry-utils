@@ -7,16 +7,16 @@ from typing import Any
 import grpc
 from circuitbreaker import circuit
 from opentelemetry import metrics, trace
+from opentelemetry._logs import set_logger_provider
 from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.sdk._logs import (
-    BatchLogProcessor,
     LoggerProvider,
     LoggingHandler,
-    set_logger_provider,
 )
+from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
@@ -98,8 +98,8 @@ class TelemetryClient:
             ),
             insecure=os.getenv("OTEL_EXPORTER_OTLP_INSECURE", "false").lower() == "true",
         )
-        log_processor = BatchLogProcessor(log_exporter)
-        logger_provider.add_log_processor(log_processor)
+        log_processor = BatchLogRecordProcessor(log_exporter)
+        logger_provider.add_log_record_processor(log_processor)
         set_logger_provider(logger_provider)
         # Pipe Python logs into OpenTelemetry
         handler = LoggingHandler(level=logging.NOTSET, logger_provider=logger_provider)
@@ -110,7 +110,7 @@ class TelemetryClient:
         FastAPIInstrumentor.instrument_app(app)
 
     @contextmanager
-    def start_span(self, name: str, attributes: dict[str, Any] | None = None):
+    def start_span(self, name: str, attributes: dict[str, Any] | None):
         """Context manager for creating spans with proper error handling."""
         tracer = trace.get_tracer(__name__)
         with tracer.start_as_current_span(name) as span:
@@ -134,21 +134,21 @@ class TelemetryClient:
         trace.get_tracer_provider().shutdown()
         metrics.get_meter_provider().shutdown()
 
-    def span_pulsar_operation(self, operation: str, attributes: dict[str, Any] | None = None):
+    def span_pulsar_operation(self, operation: str, attributes: dict[str, Any] | None):
         """
         Context manager for tracing a Pulsar client operation.
         Usage: with telemetry_client.span_pulsar_operation('send_message'):
         """
         return self.start_span(f"pulsar.{operation}", attributes)
 
-    def span_cache_operation(self, operation: str, attributes: dict[str, Any] | None = None):
+    def span_cache_operation(self, operation: str, attributes: dict[str, Any] | None):
         """
         Context manager for tracing a VALKEY cache operation.
         Usage: with telemetry_client.span_cache_operation('get'):
         """
         return self.start_span(f"cache.{operation}", attributes)
 
-    def span_celery_operation(self, operation: str, attributes: dict[str, Any] | None = None):
+    def span_celery_operation(self, operation: str, attributes: dict[str, Any] | None):
         """
         Context manager for tracing Celery operations.
         Usage: with telemetry_client.span_celery_operation('execute', {'task_name': name}):

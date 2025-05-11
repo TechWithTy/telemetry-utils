@@ -1,7 +1,7 @@
 import logging
 from functools import wraps
 from time import perf_counter
-from typing import Any, Callable, Dict, Optional, TypeVar
+from typing import Any, Callable, dict, Optional, TypeVar
 
 from opentelemetry import metrics, trace
 
@@ -21,8 +21,8 @@ ERROR_COUNT = metrics.get_meter(__name__).create_counter(
 
 
 def trace_function(
-    name: Optional[str] = None,
-    attributes: Optional[Dict[str, Any]] = None,
+    name: str | None,
+    attributes: dict[str, Any] = None,
     record_metrics: bool = True,
     capture_exceptions: bool = True,
 ) -> Callable[[T], T]:

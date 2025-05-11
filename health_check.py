@@ -7,7 +7,7 @@ Includes checks for:
 - Resource utilization
 """
 import logging
-from typing import Dict, Optional
+from typing , Optional
 
 from fastapi import Response, status
 from opentelemetry import metrics
@@ -17,7 +17,7 @@ from .client import TelemetryClient
 logger = logging.getLogger(__name__)
 
 
-def check_telemetry_health(client: Optional[TelemetryClient] = None) -> Dict[str, str]:
+def check_telemetry_health(client: Optional[TelemetryClient] = None) -> dict[str, str]:
     """
     Comprehensive health check for telemetry system.
     
@@ -25,7 +25,7 @@ def check_telemetry_health(client: Optional[TelemetryClient] = None) -> Dict[str
         client: Optional TelemetryClient instance (will use global if None)
         
     Returns:
-        Dict with health status and details
+        dict with health status and details
     """
     if client is None:
         from .telemetry import get_telemetry

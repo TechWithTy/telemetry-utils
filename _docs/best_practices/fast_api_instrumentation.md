@@ -159,11 +159,11 @@ class opentelemetry.instrumentation.fastapi.FastAPIInstrumentor(*args, **kwargs)
 
                 app – The fastapi ASGI application callable to forward requests to.
 
-                server_request_hook (Optional[Callable[[Span, Dict[str, Any]], None]]) – Optional callback which is called with the server span and ASGI scope object for every incoming request.
+                server_request_hook (Optional[Callable[[Span, dict[str, Any]], None]]) – Optional callback which is called with the server span and ASGI scope object for every incoming request.
 
-                client_request_hook (Optional[Callable[[Span, Dict[str, Any], Dict[str, Any]], None]]) – Optional callback which is called with the internal span, and ASGI scope and event which are sent as dictionaries for when the method receive is called.
+                client_request_hook (Optional[Callable[[Span, dict[str, Any], dict[str, Any]], None]]) – Optional callback which is called with the internal span, and ASGI scope and event which are sent as dictionaries for when the method receive is called.
 
-                client_response_hook (Optional[Callable[[Span, Dict[str, Any], Dict[str, Any]], None]]) – Optional callback which is called with the internal span, and ASGI scope and event which are sent as dictionaries for when the method send is called.
+                client_response_hook (Optional[Callable[[Span, dict[str, Any], dict[str, Any]], None]]) – Optional callback which is called with the internal span, and ASGI scope and event which are sent as dictionaries for when the method send is called.
 
                 tracer_provider – The optional tracer provider to use. If omitted the current globally configured one is used.
 
@@ -171,11 +171,11 @@ class opentelemetry.instrumentation.fastapi.FastAPIInstrumentor(*args, **kwargs)
 
                 excluded_urls – Optional comma delimited string of regexes to match URLs that should not be traced.
 
-                http_capture_headers_server_request (Optional[list[str]]) – Optional list of HTTP headers to capture from the request.
+                http_capture_headers_server_request (list[str] | None) – Optional list of HTTP headers to capture from the request.
 
-                http_capture_headers_server_response (Optional[list[str]]) – Optional list of HTTP headers to capture from the response.
+                http_capture_headers_server_response (list[str] | None) – Optional list of HTTP headers to capture from the response.
 
-                http_capture_headers_sanitize_fields (Optional[list[str]]) – Optional list of HTTP headers to sanitize.
+                http_capture_headers_sanitize_fields (list[str] | None) – Optional list of HTTP headers to sanitize.
 
                 exclude_spans (Optional[list[Literal['receive', 'send']]]) – Optionally exclude HTTP send and/or receive spans from the trace.
 
