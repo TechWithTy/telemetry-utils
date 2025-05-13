@@ -1,5 +1,42 @@
 # Production Telemetry Module
 
+**Production-ready Python/FastAPI Telemetry, Tracing, and Metrics Suite**
+
+This module provides distributed tracing, metrics, and health monitoring for Python microservices using OpenTelemetry and best-in-class async patterns.
+
+---
+
+## 📁 Folder Structure & Conventions
+
+```
+telemetry/
+├── _docs/           # Markdown docs, best practices, diagrams, usage
+├── _tests/          # Unit/integration tests for all core logic
+├── config.py        # Singleton config (class-based, imports from global settings)
+├── docker/          # Dockerfile, docker-compose, telemetry configs, .env.example
+├── models/          # Pydantic models or telemetry schemas
+├── exceptions/      # Custom exceptions for telemetry
+├── <core>.py        # Main implementation (client.py, decorators.py, health_check.py, telemetry.py, etc.)
+├── README.md        # Main readme (this file)
+```
+
+- **_docs/**: All documentation, diagrams, and best practices for this module.
+- **_tests/**: All tests for this module, including integration, async, and health checks.
+- **config.py**: Singleton config pattern, imports from global settings, exposes all constants for this module.
+- **docker/**: Containerization assets (Dockerfile, docker-compose, telemetry configs, .env.example, etc).
+- **models/**: Pydantic models or schemas for telemetry/tracing payloads.
+- **exceptions/**: Custom exception classes for robust error handling.
+- **<core>.py**: Main implementation modules (e.g., client.py, decorators.py, health_check.py, telemetry.py).
+
+---
+
+## 🏗️ Singleton & Config Pattern
+- Use a single class (e.g., `TelemetryConfig`) in `config.py` to centralize all env, exporter, and integration settings.
+- Import from global settings to avoid duplication and ensure DRY config.
+- Document all config keys in `_docs/usage.md` and in this README.
+
+---
+
 ## Features
 - **Distributed Tracing**: End-to-end request tracking
 - **Metrics Collection**: Performance and error metrics
