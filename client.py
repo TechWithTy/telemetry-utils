@@ -55,8 +55,7 @@ class TelemetryClient:
 
         otlp_exporter = OTLPSpanExporter(
             endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317"),
-            insecure=os.getenv("OTEL_EXPORTER_OTLP_INSECURE", "false").lower()
-            == "true",
+            insecure=True,
         )
 
         span_processor = BatchSpanProcessor(otlp_exporter)
@@ -74,7 +73,7 @@ class TelemetryClient:
                 "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "http://localhost:4317"
             ),
             # ! Respect insecure flag for consistency and security
-            insecure=os.getenv("OTEL_EXPORTER_OTLP_INSECURE", "false").lower() == "true",
+            insecure=True,
         )
         metric_reader = PeriodicExportingMetricReader(metric_exporter)
         metrics.set_meter_provider(MeterProvider(metric_readers=[metric_reader]))
@@ -98,7 +97,7 @@ class TelemetryClient:
             endpoint=os.getenv(
                 "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", "http://localhost:4317"
             ),
-            insecure=os.getenv("OTEL_EXPORTER_OTLP_INSECURE", "false").lower() == "true",
+            insecure=True,
         )
         log_processor = BatchLogRecordProcessor(log_exporter)
         logger_provider.add_log_record_processor(log_processor)
