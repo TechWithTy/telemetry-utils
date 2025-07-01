@@ -3,6 +3,8 @@ import os
 from typing import Optional
 
 from fastapi import APIRouter, FastAPI
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 
 from .client import TelemetryClient
 from .decorators import measure_performance, trace_function, track_errors
@@ -30,6 +32,23 @@ def setup_telemetry(app: FastAPI) -> TelemetryClient:
         service_version=os.getenv("SERVICE_VERSION", "1.0.0"),
     )
 
+    # Use Grafana Cloud endpoints if available
+    if os.getenv("USE_MANAGED_SERVICES") == "true":
+        otlp_endpoint = os.getenv("TEMPO_EXPORTER_ENDPOINT")
+        headers = {
+            "Authorization": f"Bearer {os.getenv('GRAFANA_CLOUD_API_KEY')}"
+        }
+        
+        span_exporter = OTLPSpanExporter(
+            endpoint=otlp_endpoint,
+            headers=headers
+        )
+    else:
+        # Local setup
+        span_exporter = OTLPSpanExporter(
+            endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
+        )
+    
     # Instrument FastAPI with OpenTelemetry
     telemetry_client.instrument_fastapi(app)
     
