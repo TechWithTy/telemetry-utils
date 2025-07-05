@@ -27,13 +27,16 @@ logger = logging.getLogger(__name__)
 
 
 class TelemetryClient:
-    def __init__(self, service_name: str, service_version: str = "1.0.0"):
+    def __init__(self, service_name: str, service_version: str = "1.0.0", auto_init: bool = True):
         """Production-ready telemetry client with metrics and proper shutdown."""
         self.service_name = service_name
         self.service_version = service_version
-        self._initialize_tracing()
-        self._initialize_metrics()
-        self._initialize_logging()
+        
+        # Only auto-initialize if requested (allows external configuration)
+        if auto_init:
+            self._initialize_tracing()
+            self._initialize_metrics()
+            self._initialize_logging()
 
     @circuit(
         failure_threshold=3,
@@ -155,3 +158,23 @@ class TelemetryClient:
         Usage: with telemetry_client.span_celery_operation('execute', {'task_name': name}):
         """
         return self.start_span(f"celery.{operation}", attributes)
+
+    def configure_exporters(self, span_exporter, metric_exporter=None):
+        """
+        Configure custom exporters for traces and metrics.
+        This allows external configuration for Grafana Cloud or other providers.
+
+        Args:
+            span_exporter: OpenTelemetry span exporter instance
+            metric_exporter: Optional OpenTelemetry metric exporter instance
+        """
+        # Configure trace exporter
+        span_processor = BatchSpanProcessor(span_exporter)
+        trace.get_tracer_provider().add_span_processor(span_processor)
+
+        # Configure metric exporter if provided
+        if metric_exporter:
+            metric_reader = PeriodicExportingMetricReader(metric_exporter)
+            metrics.set_meter_provider(MeterProvider(metric_readers=[metric_reader]))
+
+        logger.info("Configured custom exporters for telemetry")
