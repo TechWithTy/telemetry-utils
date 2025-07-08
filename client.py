@@ -60,8 +60,13 @@ class TelemetryClient:
             trace.set_tracer_provider(TracerProvider(resource=resource))
         
         # Initialize MeterProvider if not already set  
-        if not hasattr(metrics.get_meter_provider(), 'shutdown'):
-            metrics.set_meter_provider(MeterProvider(resource=resource))
+        try:
+            current_provider = metrics.get_meter_provider()
+            # Check if it's the default NoOpMeterProvider
+            if type(current_provider).__name__ == 'NoOpMeterProvider':
+                metrics.set_meter_provider(MeterProvider(resource=resource))
+        except Exception as e:
+            logger.warning(f"MeterProvider already initialized or error setting: {e}")
 
     @circuit(
         failure_threshold=3,
@@ -96,12 +101,17 @@ class TelemetryClient:
         metric_reader = PeriodicExportingMetricReader(metric_exporter)
         
         # Update the existing meter provider with the new reader
-        current_provider = metrics.get_meter_provider()
-        if hasattr(current_provider, '_metric_readers'):
-            current_provider._metric_readers.append(metric_reader)
-        else:
-            # Fallback: create new provider
-            metrics.set_meter_provider(MeterProvider(metric_readers=[metric_reader]))
+        try:
+            current_provider = metrics.get_meter_provider()
+            if hasattr(current_provider, '_metric_readers'):
+                current_provider._metric_readers.append(metric_reader)
+            elif type(current_provider).__name__ == 'NoOpMeterProvider':
+                # Only set if it's the default NoOp provider
+                metrics.set_meter_provider(MeterProvider(metric_readers=[metric_reader]))
+            else:
+                logger.warning("MeterProvider already exists, skipping metrics setup")
+        except Exception as e:
+            logger.warning(f"Failed to setup metrics exporter: {e}")
 
     @circuit(
         failure_threshold=3,
@@ -197,6 +207,13 @@ class TelemetryClient:
         # Configure metric exporter if provided
         if metric_exporter:
             metric_reader = PeriodicExportingMetricReader(metric_exporter)
-            metrics.set_meter_provider(MeterProvider(metric_readers=[metric_reader]))
+            try:
+                current_provider = metrics.get_meter_provider()
+                if type(current_provider).__name__ == 'NoOpMeterProvider':
+                    metrics.set_meter_provider(MeterProvider(metric_readers=[metric_reader]))
+                else:
+                    logger.warning("MeterProvider already exists, skipping metric exporter setup")
+            except Exception as e:
+                logger.warning(f"Failed to configure metric exporter: {e}")
 
         logger.info("Configured custom exporters for telemetry")
