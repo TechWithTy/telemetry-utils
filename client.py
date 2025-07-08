@@ -32,11 +32,32 @@ class TelemetryClient:
         self.service_name = service_name
         self.service_version = service_version
         
-        # Only auto-initialize if requested (allows external configuration)
+        # Always initialize the basic resource and providers
+        self._initialize_base_providers()
+        
+        # Only auto-initialize exporters if requested (allows external configuration)
         if auto_init:
             self._initialize_tracing()
             self._initialize_metrics()
             self._initialize_logging()
+
+    def _initialize_base_providers(self):
+        """Initialize base trace and metric providers without exporters"""
+        resource = Resource.create(
+            {
+                "service.name": self.service_name,
+                "service.version": self.service_version,
+                "environment": os.getenv("ENVIRONMENT", "development"),
+            }
+        )
+        
+        # Initialize TracerProvider if not already set
+        if not hasattr(trace.get_tracer_provider(), 'add_span_processor'):
+            trace.set_tracer_provider(TracerProvider(resource=resource))
+        
+        # Initialize MeterProvider if not already set  
+        if not hasattr(metrics.get_meter_provider(), 'shutdown'):
+            metrics.set_meter_provider(MeterProvider(resource=resource))
 
     @circuit(
         failure_threshold=3,
@@ -46,16 +67,6 @@ class TelemetryClient:
     )
     def _initialize_tracing(self):
         """Initialize tracing with production-ready configuration."""
-        resource = Resource.create(
-            {
-                "service.name": self.service_name,
-                "service.version": self.service_version,
-                "environment": os.getenv("ENVIRONMENT", "development"),
-            }
-        )
-
-        trace.set_tracer_provider(TracerProvider(resource=resource))
-
         otlp_exporter = OTLPSpanExporter(
             endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317"),
             insecure=True,
@@ -79,7 +90,14 @@ class TelemetryClient:
             insecure=True,
         )
         metric_reader = PeriodicExportingMetricReader(metric_exporter)
-        metrics.set_meter_provider(MeterProvider(metric_readers=[metric_reader]))
+        
+        # Update the existing meter provider with the new reader
+        current_provider = metrics.get_meter_provider()
+        if hasattr(current_provider, '_metric_readers'):
+            current_provider._metric_readers.append(metric_reader)
+        else:
+            # Fallback: create new provider
+            metrics.set_meter_provider(MeterProvider(metric_readers=[metric_reader]))
 
     @circuit(
         failure_threshold=3,

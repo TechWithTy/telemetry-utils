@@ -36,33 +36,52 @@ def setup_telemetry(app: FastAPI) -> TelemetryClient:
 
     # Configure OTLP exporter for Grafana Cloud Tempo
     if os.getenv("USE_MANAGED_SERVICES") == "true":
+        print("[INFO] Configuring Grafana Cloud Tempo integration", flush=True)
         # Grafana Cloud configuration
         otlp_endpoint = os.getenv("TEMPO_EXPORTER_ENDPOINT")
-        grafana_api_key = os.getenv("GRAFANA_CLOUD_API_KEY")
+        tempo_username = os.getenv("TEMPO_USERNAME")  
+        tempo_api_key = os.getenv("TEMPO_API_KEY")
         
-        if not otlp_endpoint or not grafana_api_key:
+        print(f"[DEBUG] TEMPO_EXPORTER_ENDPOINT: {otlp_endpoint}", flush=True)
+        print(f"[DEBUG] TEMPO_USERNAME: {tempo_username}", flush=True)
+        print(f"[DEBUG] TEMPO_API_KEY: {'✓' if tempo_api_key else '✗'}", flush=True)
+        
+        if not otlp_endpoint or not tempo_username or not tempo_api_key:
             print("[WARNING] Grafana Cloud credentials not properly configured", flush=True)
             print("  TEMPO_EXPORTER_ENDPOINT:", "✓" if otlp_endpoint else "✗")
-            print("  GRAFANA_CLOUD_API_KEY:", "✓" if grafana_api_key else "✗")
+            print("  TEMPO_USERNAME:", "✓" if tempo_username else "✗")
+            print("  TEMPO_API_KEY:", "✓" if tempo_api_key else "✗")
         
-        headers = {
-            "Authorization": f"Bearer {grafana_api_key}"
-        }
+        # Use basic authentication for Grafana Cloud Tempo (gRPC metadata format)
+        import base64
+        credentials = f"{tempo_username}:{tempo_api_key}"
+        encoded_credentials = base64.b64encode(credentials.encode()).decode()
+        
+        # gRPC uses metadata, not headers - and expects key-value tuples
+        headers = (
+            ("authorization", f"Basic {encoded_credentials}"),
+        )
         
         span_exporter = OTLPSpanExporter(
             endpoint=otlp_endpoint,
             headers=headers,
-            timeout=30  # 30 second timeout for cloud
+            timeout=30,
+            insecure=False  # Use secure connection for Grafana Cloud
         )
         
         # Also configure metrics exporter for Grafana Cloud
         metrics_endpoint = otlp_endpoint.replace("/api/traces", "/api/push")
+        print(f"[DEBUG] Metrics endpoint: {metrics_endpoint}", flush=True)
         metric_exporter = OTLPMetricExporter(
             endpoint=metrics_endpoint,
             headers=headers,
-            timeout=30
+            timeout=30,
+            insecure=False  # Use secure connection for Grafana Cloud
         )
+        
+        print("[INFO] Grafana Cloud exporters configured with Basic Auth", flush=True)
     else:
+        print("[INFO] Using local Tempo setup", flush=True)
         # Local Tempo setup
         local_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
         span_exporter = OTLPSpanExporter(endpoint=local_endpoint)
