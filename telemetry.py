@@ -17,7 +17,7 @@ telemetry_client: Optional[TelemetryClient] = None
 def setup_telemetry(app: FastAPI) -> TelemetryClient:
     """
     Production-ready telemetry setup with health checks and Prometheus integration.
-    Optimized for Grafana Cloud Tempo.
+    Optimized for Grafana Cloud Tempo with fixes for service name and trace gaps.
 
     Args:
         app: FastAPI application instance
@@ -27,11 +27,24 @@ def setup_telemetry(app: FastAPI) -> TelemetryClient:
     """
     global telemetry_client
 
-    # Initialize OpenTelemetry client (without auto-init for custom configuration)
+    # Get service configuration with explicit defaults
+    service_name = os.getenv("SERVICE_NAME", "fastapi-connect-backend")
+    service_version = os.getenv("SERVICE_VERSION", "1.0.0")
+    environment = os.getenv("ENVIRONMENT", "production")
+    
+    # Create unique instance ID for better tracing
+    import uuid
+    instance_id = f"{service_name}-{uuid.uuid4().hex[:8]}"
+    
+    print(f"[TELEMETRY] Initializing telemetry for {service_name} (instance: {instance_id})")
+
+    # Initialize OpenTelemetry client with explicit configuration
     telemetry_client = TelemetryClient(
-        service_name=os.getenv("SERVICE_NAME", "fastapi-connect-backend"),
-        service_version=os.getenv("SERVICE_VERSION", "1.0.0"),
-        auto_init=False  # We'll configure exporters manually
+        service_name=service_name,
+        service_version=service_version,
+        auto_init=False,  # We'll configure exporters manually
+        instance_id=instance_id,
+        environment=environment
     )
 
     # Configure OTLP exporter for Grafana Cloud Tempo

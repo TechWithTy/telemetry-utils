@@ -27,10 +27,13 @@ logger = logging.getLogger(__name__)
 
 
 class TelemetryClient:
-    def __init__(self, service_name: str, service_version: str = "1.0.0", auto_init: bool = True):
+    def __init__(self, service_name: str, service_version: str = "1.0.0", auto_init: bool = True, 
+                 instance_id: str = None, environment: str = None):
         """Production-ready telemetry client with metrics and proper shutdown."""
         self.service_name = service_name
         self.service_version = service_version
+        self.instance_id = instance_id or f"{service_name}-{os.getpid()}"
+        self.environment = environment or os.getenv("ENVIRONMENT", "development")
         
         # Always initialize the basic resource and providers
         self._initialize_base_providers()
@@ -43,13 +46,14 @@ class TelemetryClient:
 
     def _initialize_base_providers(self):
         """Initialize base trace and metric providers without exporters"""
-        resource = Resource.create(
-            {
-                "service.name": self.service_name,
-                "service.version": self.service_version,
-                "environment": os.getenv("ENVIRONMENT", "development"),
-            }
-        )
+        resource_attributes = {
+            "service.name": self.service_name,
+            "service.version": self.service_version,
+            "service.instance.id": self.instance_id,
+            "environment": self.environment,
+        }
+        
+        resource = Resource.create(resource_attributes)
         
         # Initialize TracerProvider if not already set
         if not hasattr(trace.get_tracer_provider(), 'add_span_processor'):
