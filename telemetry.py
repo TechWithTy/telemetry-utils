@@ -78,7 +78,7 @@ def setup_telemetry(app: FastAPI) -> TelemetryClient:
         span_exporter = OTLPSpanExporter(
             endpoint=otlp_endpoint,
             headers=headers,
-            timeout=30,
+            timeout=2,  # Reduced from 30s to 2s for faster failure
             insecure=False  # Use secure connection for Grafana Cloud
         )
         
@@ -88,17 +88,17 @@ def setup_telemetry(app: FastAPI) -> TelemetryClient:
         metric_exporter = OTLPMetricExporter(
             endpoint=metrics_endpoint,
             headers=headers,
-            timeout=30,
+            timeout=2,  # Reduced from 30s to 2s for faster failure
             insecure=False  # Use secure connection for Grafana Cloud
         )
         
         print("[INFO] Grafana Cloud exporters configured with Basic Auth", flush=True)
     else:
         print("[INFO] Using local Tempo setup", flush=True)
-        # Local Tempo setup
+        # Local Tempo setup with reduced timeouts
         local_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
-        span_exporter = OTLPSpanExporter(endpoint=local_endpoint)
-        metric_exporter = OTLPMetricExporter(endpoint=local_endpoint)
+        span_exporter = OTLPSpanExporter(endpoint=local_endpoint, timeout=2)
+        metric_exporter = OTLPMetricExporter(endpoint=local_endpoint, timeout=2)
     
     # Configure telemetry client with the exporters
     telemetry_client.configure_exporters(span_exporter, metric_exporter)

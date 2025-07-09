@@ -79,9 +79,17 @@ class TelemetryClient:
         otlp_exporter = OTLPSpanExporter(
             endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317"),
             insecure=True,
+            timeout=2  # Fast timeout for non-blocking operation
         )
 
-        span_processor = BatchSpanProcessor(otlp_exporter)
+        # Use optimized batch processor settings
+        span_processor = BatchSpanProcessor(
+            otlp_exporter,
+            max_queue_size=2048,  # Larger queue to reduce blocking
+            export_timeout_millis=1000,  # 1s export timeout
+            schedule_delay_millis=500,  # 500ms delay between exports
+            max_export_batch_size=512  # Larger batches
+        )
         trace.get_tracer_provider().add_span_processor(span_processor)
 
     @circuit(
@@ -200,8 +208,14 @@ class TelemetryClient:
             span_exporter: OpenTelemetry span exporter instance
             metric_exporter: Optional OpenTelemetry metric exporter instance
         """
-        # Configure trace exporter
-        span_processor = BatchSpanProcessor(span_exporter)
+        # Configure trace exporter with optimized batch settings for better performance
+        span_processor = BatchSpanProcessor(
+            span_exporter,
+            max_queue_size=2048,  # Larger queue to reduce blocking
+            export_timeout_millis=1000,  # 1s export timeout
+            schedule_delay_millis=500,  # 500ms delay between exports
+            max_export_batch_size=512  # Larger batches
+        )
         trace.get_tracer_provider().add_span_processor(span_processor)
 
         # Configure metric exporter if provided
@@ -216,4 +230,4 @@ class TelemetryClient:
             except Exception as e:
                 logger.warning(f"Failed to configure metric exporter: {e}")
 
-        logger.info("Configured custom exporters for telemetry")
+        logger.info("Configured custom exporters for telemetry with optimized batching")
