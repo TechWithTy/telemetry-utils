@@ -4,6 +4,7 @@ import requests
 import time
 import os
 from opentelemetry import trace
+from unittest.mock import MagicMock
 
 
 # ! This fixture ensures the OpenTelemetry Collector is running before any tests execute.
@@ -73,7 +74,18 @@ def otel_collector():
 # * Only the otel_collector fixture remains here for collector health.
 @pytest.fixture(autouse=True)
 def reset_telemetry():
-    """Reset telemetry state between tests"""
-    trace._TRACER_PROVIDER = None
+    """Reset telemetry state between tests with proper mocking"""
+    original_provider = trace.get_tracer_provider()
+    
+    # Create a mock provider that has the required methods
+    mock_provider = MagicMock()
+    mock_provider.add_span_processor = MagicMock()
+    mock_provider.shutdown = MagicMock()
+    
+    # Set the mock provider
+    trace.set_tracer_provider(mock_provider)
+    
     yield
-    trace._TRACER_PROVIDER = None
+    
+    # Restore original provider after test
+    trace.set_tracer_provider(original_provider)

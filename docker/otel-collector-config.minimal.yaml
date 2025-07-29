@@ -4,9 +4,20 @@ receivers:
       grpc:
       http:
 
+processors:
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+
 exporters:
   logging:
-    loglevel: info
+    verbosity: Detailed
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+  otlp:
+    endpoint: "tempo:4317"
+    tls:
+      insecure: true
 
 extensions:
   health_check:
@@ -17,10 +28,13 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      exporters: [logging]
+      processors: [batch]
+      exporters: [logging, otlp]
     metrics:
       receivers: [otlp]
-      exporters: [logging]
+      processors: [batch]
+      exporters: [logging, prometheus]  # Add prometheus here
     logs:
       receivers: [otlp]
+      processors: [batch]
       exporters: [logging]

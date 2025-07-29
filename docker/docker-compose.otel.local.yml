@@ -3,19 +3,23 @@ version: '3.8'
 services:
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.93.0
-    container_name: otel-collector-minimal
+    container_name: otel-collector
     restart: unless-stopped
+    # Change the config path to avoid the issue
     command: ["--config=/etc/otel-collector-config.minimal.yaml"]
     volumes:
-      - ./otel-collector-config.minimal.yaml:/etc/otel-collector-config.minimal.yaml:ro
+      # Change the mount path
+      - c:/Users/wcf88/Downloads/fastapi-connect/backend/app/core/telemetry/docker/otel-collector-config.minimal.yaml:/etc/otel-collector-config.minimal.yaml:ro
     ports:
       - "4317:4317"    # OTLP gRPC
       - "4318:4318"    # OTLP HTTP (healthcheck expects this)
       - "13133:13133"  # OTEL Collector health check
+      - "8889:8889"
     networks:
       - app-network
     environment:
       - NO_WINDOWS_SERVICE=1
+      - OTEL_EXPORTER_OTLP_INSECURE=true
 
 networks:
   app-network:

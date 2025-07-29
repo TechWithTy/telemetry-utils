@@ -27,13 +27,46 @@ logger = logging.getLogger(__name__)
 
 
 class TelemetryClient:
-    def __init__(self, service_name: str, service_version: str = "1.0.0"):
+    def __init__(self, service_name: str, service_version: str = "1.0.0", auto_init: bool = True, 
+                 instance_id: str = None, environment: str = None):
         """Production-ready telemetry client with metrics and proper shutdown."""
         self.service_name = service_name
         self.service_version = service_version
-        self._initialize_tracing()
-        self._initialize_metrics()
-        self._initialize_logging()
+        self.instance_id = instance_id or f"{service_name}-{os.getpid()}"
+        self.environment = environment or os.getenv("ENVIRONMENT", "development")
+        
+        # Always initialize the basic resource and providers
+        self._initialize_base_providers()
+        
+        # Only auto-initialize exporters if requested (allows external configuration)
+        if auto_init:
+            self._initialize_tracing()
+            self._initialize_metrics()
+            self._initialize_logging()
+
+    def _initialize_base_providers(self):
+        """Initialize base trace and metric providers without exporters"""
+        resource_attributes = {
+            "service.name": self.service_name,
+            "service.version": self.service_version,
+            "service.instance.id": self.instance_id,
+            "environment": self.environment,
+        }
+        
+        resource = Resource.create(resource_attributes)
+        
+        # Initialize TracerProvider if not already set
+        if not hasattr(trace.get_tracer_provider(), 'add_span_processor'):
+            trace.set_tracer_provider(TracerProvider(resource=resource))
+        
+        # Initialize MeterProvider if not already set  
+        try:
+            current_provider = metrics.get_meter_provider()
+            # Check if it's the default NoOpMeterProvider
+            if type(current_provider).__name__ == 'NoOpMeterProvider':
+                metrics.set_meter_provider(MeterProvider(resource=resource))
+        except Exception as e:
+            logger.warning(f"MeterProvider already initialized or error setting: {e}")
 
     @circuit(
         failure_threshold=3,
@@ -43,23 +76,20 @@ class TelemetryClient:
     )
     def _initialize_tracing(self):
         """Initialize tracing with production-ready configuration."""
-        resource = Resource.create(
-            {
-                "service.name": self.service_name,
-                "service.version": self.service_version,
-                "environment": os.getenv("ENVIRONMENT", "development"),
-            }
-        )
-
-        trace.set_tracer_provider(TracerProvider(resource=resource))
-
         otlp_exporter = OTLPSpanExporter(
             endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317"),
-            insecure=os.getenv("OTEL_EXPORTER_OTLP_INSECURE", "false").lower()
-            == "true",
+            insecure=True,
+            timeout=2  # Fast timeout for non-blocking operation
         )
 
-        span_processor = BatchSpanProcessor(otlp_exporter)
+        # Use optimized batch processor settings
+        span_processor = BatchSpanProcessor(
+            otlp_exporter,
+            max_queue_size=2048,  # Larger queue to reduce blocking
+            export_timeout_millis=1000,  # 1s export timeout
+            schedule_delay_millis=500,  # 500ms delay between exports
+            max_export_batch_size=512  # Larger batches
+        )
         trace.get_tracer_provider().add_span_processor(span_processor)
 
     @circuit(
@@ -74,10 +104,22 @@ class TelemetryClient:
                 "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "http://localhost:4317"
             ),
             # ! Respect insecure flag for consistency and security
-            insecure=os.getenv("OTEL_EXPORTER_OTLP_INSECURE", "false").lower() == "true",
+            insecure=True,
         )
         metric_reader = PeriodicExportingMetricReader(metric_exporter)
-        metrics.set_meter_provider(MeterProvider(metric_readers=[metric_reader]))
+        
+        # Update the existing meter provider with the new reader
+        try:
+            current_provider = metrics.get_meter_provider()
+            if hasattr(current_provider, '_metric_readers'):
+                current_provider._metric_readers.append(metric_reader)
+            elif type(current_provider).__name__ == 'NoOpMeterProvider':
+                # Only set if it's the default NoOp provider
+                metrics.set_meter_provider(MeterProvider(metric_readers=[metric_reader]))
+            else:
+                logger.warning("MeterProvider already exists, skipping metrics setup")
+        except Exception as e:
+            logger.warning(f"Failed to setup metrics exporter: {e}")
 
     @circuit(
         failure_threshold=3,
@@ -98,7 +140,7 @@ class TelemetryClient:
             endpoint=os.getenv(
                 "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", "http://localhost:4317"
             ),
-            insecure=os.getenv("OTEL_EXPORTER_OTLP_INSECURE", "false").lower() == "true",
+            insecure=True,
         )
         log_processor = BatchLogRecordProcessor(log_exporter)
         logger_provider.add_log_record_processor(log_processor)
@@ -156,3 +198,36 @@ class TelemetryClient:
         Usage: with telemetry_client.span_celery_operation('execute', {'task_name': name}):
         """
         return self.start_span(f"celery.{operation}", attributes)
+
+    def configure_exporters(self, span_exporter, metric_exporter=None):
+        """
+        Configure custom exporters for traces and metrics.
+        This allows external configuration for Grafana Cloud or other providers.
+
+        Args:
+            span_exporter: OpenTelemetry span exporter instance
+            metric_exporter: Optional OpenTelemetry metric exporter instance
+        """
+        # Configure trace exporter with optimized batch settings for better performance
+        span_processor = BatchSpanProcessor(
+            span_exporter,
+            max_queue_size=2048,  # Larger queue to reduce blocking
+            export_timeout_millis=1000,  # 1s export timeout
+            schedule_delay_millis=500,  # 500ms delay between exports
+            max_export_batch_size=512  # Larger batches
+        )
+        trace.get_tracer_provider().add_span_processor(span_processor)
+
+        # Configure metric exporter if provided
+        if metric_exporter:
+            metric_reader = PeriodicExportingMetricReader(metric_exporter)
+            try:
+                current_provider = metrics.get_meter_provider()
+                if type(current_provider).__name__ == 'NoOpMeterProvider':
+                    metrics.set_meter_provider(MeterProvider(metric_readers=[metric_reader]))
+                else:
+                    logger.warning("MeterProvider already exists, skipping metric exporter setup")
+            except Exception as e:
+                logger.warning(f"Failed to configure metric exporter: {e}")
+
+        logger.info("Configured custom exporters for telemetry with optimized batching")

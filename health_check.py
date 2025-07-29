@@ -28,10 +28,17 @@ def check_telemetry_health(client: Optional[TelemetryClient] = None) -> dict[str
     Returns:
         dict with health status and details
     """
+    # Import here to avoid circular import
     if client is None:
-        return {"status": "uninitialized", "reason": "Telemetry client not initialized"}
+        from .telemetry import get_telemetry
+        client = get_telemetry()
+        
+    # If still None, telemetry is not initialized
+    if client is None:
+        logger.warning("Telemetry health check called but client is not initialized")
+        return {"status": "unhealthy", "reason": "Telemetry client not initialized"}
 
-    health_status = {"status": "healthy"}
+    health_status = {"status": "healthy", "circuit_breaker": "closed"}
     
     # Check circuit breaker state
     if hasattr(client, "circuit_breaker") and client.circuit_breaker.is_open:
@@ -41,7 +48,27 @@ def check_telemetry_health(client: Optional[TelemetryClient] = None) -> dict[str
             "reason": "Telemetry backend unavailable"
         })
     
-    # Add any additional backend-specific checks here
+    # Check exporter health if available
+    if hasattr(client, "exporters") and client.exporters:
+        exporters_status = {}
+        all_healthy = True
+        
+        for name, exporter in client.exporters.items():
+            if hasattr(exporter, "is_healthy") and callable(exporter.is_healthy):
+                try:
+                    is_healthy = exporter.is_healthy()
+                    exporters_status[name] = "healthy" if is_healthy else "unhealthy"
+                    all_healthy = all_healthy and is_healthy
+                except Exception as e:
+                    logger.exception(f"Error checking health of exporter {name}")
+                    exporters_status[name] = f"error: {str(e)}"
+                    all_healthy = False
+        
+        if not all_healthy:
+            health_status["status"] = "degraded"
+            health_status["reason"] = "One or more exporters unhealthy"
+        
+        health_status["exporters"] = exporters_status
     
     return health_status
 
@@ -50,11 +77,43 @@ def health_response() -> Response:
     """
     Generate FastAPI response for telemetry health check.
     """
-    health = check_telemetry_health()
+    from .telemetry import get_telemetry
+    
+    # Use the global telemetry client
+    client = get_telemetry()
+    health = check_telemetry_health(client)
+    
+    # Determine status code based on health status
+    status_code = status.HTTP_200_OK
+    if health["status"] == "unhealthy":
+        status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    elif health["status"] == "degraded":
+        status_code = status.HTTP_200_OK  # Degraded is still 200 but with warning content
+    
     return JSONResponse(
-        health,
-        status_code=200 if health["status"] == "healthy" else 503,
+        content=health,
+        status_code=status_code,
     )
+
+
+def get_health_status_numeric(client: Optional[TelemetryClient] = None) -> float:
+    """
+    Convert health status to a numeric value for metrics.
+    
+    Returns:
+        2.0 for healthy
+        1.0 for degraded
+        0.0 for unhealthy/uninitialized
+    """
+    health = check_telemetry_health(client)
+    status = health.get("status", "unhealthy")
+    
+    if status == "healthy":
+        return 2.0
+    elif status == "degraded":
+        return 1.0
+    else:
+        return 0.0
 
 
 def register_health_metrics():
@@ -62,12 +121,28 @@ def register_health_metrics():
     Register health-related metrics for monitoring.
     """
     meter = metrics.get_meter(__name__)
+    
+    # Define callback that returns a simple numeric value
+    def health_callback(_):
+        """Returns current telemetry health status as a numeric value."""
+        try:
+            # Import here to avoid circular import
+            from .telemetry import get_telemetry
+            
+            # Get the global telemetry client
+            client = get_telemetry()
+            status_value = get_health_status_numeric(client)
+            
+            # Return a simple numeric value (not a tuple)
+            return status_value
+        except Exception as e:
+            logging.exception("Error in health metrics callback")
+            return 0.0  # Return unhealthy on error
+    
+    # Create observable gauge with callbacks parameter (list of callbacks)
     meter.create_observable_gauge(
-        "telemetry.health.status",
-        callbacks=[lambda: 1],  # TODO: Implement actual health metric
-        description="Telemetry health status (1=healthy, 0=unhealthy)"
+        name="telemetry_health_status",
+        description="Telemetry health status (2=healthy, 1=degraded, 0=unhealthy)",
+        unit="status",
+        callbacks=[health_callback]  # Use callbacks (list) instead of callback (single function)
     )
-
-
-# Pre-register metrics when module loads
-register_health_metrics()
